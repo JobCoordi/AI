@@ -1,0 +1,21 @@
+# Core
+langchain-core>=0.1.32
+langchain-openai>=0.1.6
+langchain-community>=0.0.34
+langgraph>=0.0.25
+langchainhub>=0.1.14
+
+# FastAPI 등 서버용이 있다면 (옵션)
+fastapi
+uvicorn[standard]
+
+# 환경변수
+python-dotenv
+
+# DB (PostgreSQL)
+psycopg2-binary
+
+# 기타 타입 지원
+typing-extensions
+
+# 로깅 & 디버깅
