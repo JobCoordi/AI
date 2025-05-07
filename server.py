@@ -1,38 +1,49 @@
-# server.py
-
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
+from typing import Optional
 from model import TranslationModel
 import os
 from dotenv import load_dotenv
 
-# .env 로드
 load_dotenv()
-
-# FastAPI 앱 생성
 app = FastAPI()
+translator = TranslationModel(model_name="gpt-4o")
 
-# 모델 인스턴스 초기화
-translator = TranslationModel(
-    model_name="gpt-3.5-turbo",  # 또는 "gpt-4o"
-    db_connection=None  # .env에서 자동으로 가져감
-)
+class ProfileRequest(BaseModel):
+    user_id: str
+    birth_year: Optional[str] = None
+    gender: Optional[str] = None
+    education_level: Optional[str] = None
+    major: Optional[str] = None
+    career: Optional[str] = None
+    interests: Optional[str] = None
+    certifications: Optional[str] = None
+    preferred_work: Optional[str] = None
+    self_description: Optional[str] = None
+    profiles: Optional[str] = None
+    session_id: Optional[str] = "default_thread"
+    language: Optional[str] = "korean"
 
-# 요청 스키마 정의
-class TranslationRequest(BaseModel):
-    text: str
-    session_id: str = "default_thread"
-    language: str = "korean"
+def convert_to_prompt(req: ProfileRequest) -> str:
+    if req.profiles:
+        return req.profiles
+    return (
+        f"출생년도:{req.birth_year or '모름'}, 성별:{req.gender or '모름'}, "
+        f"최종학력:{req.education_level or '모름'}, 전공:{req.major or '모름'}, "
+        f"경력:{req.career or '모름'}, 관심 분야:{req.interests or '모름'}, "
+        f"자격증:{req.certifications or '모름'}, 희망 근무형태:{req.preferred_work or '모름'}, "
+        f"자기소개:{req.self_description or '모름'}"
+    )
 
-# POST 요청 처리
-@app.post("/translate")
-def translate(req: TranslationRequest):
+@app.post("/recommend")
+def recommend_job(req: ProfileRequest):
+    user_input = convert_to_prompt(req)
     response = translator.translate(
-        text=req.text,
+        text=user_input,
         session_id=req.session_id,
         language=req.language
     )
-    return {"response": response}
+    return {"user_id": req.user_id, "response": response}
 
 # 헬스체크
 @app.get("/")

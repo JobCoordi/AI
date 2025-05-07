@@ -1,5 +1,5 @@
 import os
-from typing import Sequence, List, Optional
+from typing import Sequence, Optional
 import logging
 from dotenv import load_dotenv
 
@@ -18,6 +18,10 @@ from typing_extensions import Annotated, TypedDict
 from langchain_community.chat_message_histories import SQLChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_openai import ChatOpenAI
+
+# Tavily 검색 도구
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain.agents import Tool, initialize_agent, AgentType
 
 # 환경 변수 로드
 load_dotenv()
@@ -47,13 +51,14 @@ class TranslationModel:
             )
 
             default_prompt = (
-                "당신은 직업 10년차 상담사입니다. 저의 질문을 듣고 제가 무슨 직업이 어울릴지 자세하게 설명해주세요."
+                "당신은 경력 10년 이상의 진로 상담가입니다. 사용자의 정보를 보고 어떤 직업이 어울릴지 상담해주세요. "
+                "이유도 구체적으로 설명하고, 어떤 준비가 필요한지도 조언해주세요."
             )
 
             self.prompt_template = ChatPromptTemplate.from_messages([
                 ("system", system_prompt or default_prompt),
                 MessagesPlaceholder(variable_name="history"),
-                ("human", "{question}"),
+                ("human", "{profile_text}"),
             ])
 
             self.memory = MemorySaver()
@@ -64,7 +69,7 @@ class TranslationModel:
             self.chain_with_history = RunnableWithMessageHistory(
                 self.chain,
                 self._get_chat_history,
-                input_messages_key="question",
+                input_messages_key="profile_text",
                 history_messages_key="history",
             )
 
@@ -114,21 +119,33 @@ class TranslationModel:
             else:
                 all_messages = current_messages or past_messages
 
-            last_human_message = next(
+            last_profile = next(
                 (msg.content for msg in reversed(all_messages) if isinstance(msg, HumanMessage)),
-                "거래처에 새해 인사와 함께 신규 계약건에 대해 이메일을 보내야 한다. 뭐라고 해야 할까?"
+                "출생년도:1999, 성별:남자, 최종학력:고졸, 전공:문과, 경력:없음, 관심분야:없음, 자격증:없음, 희망 근무 형태:없음, 자기소개:없음"
             )
 
-            response = self.llm.invoke(
-                self.prompt_template.format(
-                    history=all_messages,
-                    language=state.get("language", "korean"),
-                    question=last_human_message
-                )
+            # Tavily 검색 도구 초기화
+            search_tool = TavilySearchResults(api_key=os.getenv("TAVILY_API_KEY"))
+            tools = [Tool.from_function(
+                func=search_tool.run,
+                name="TavilySearch",
+                description="최신 직업 트렌드나 추천 정보를 검색합니다."
+            )]
+
+            # LLM + 툴 → 에이전트 구성
+            agent_executor = initialize_agent(
+                tools, self.llm,
+                agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+                verbose=False
+            )
+
+            # 실제 에이전트 실행
+            response_text = agent_executor.run(
+                f"{last_profile} 이 사용자에게 어울리는 최신 직업 트렌드와 준비 방법을 포함해서 조언해줘."
             )
 
             return {
-                "messages": all_messages + [response],
+                "messages": all_messages + [AIMessage(content=response_text)],
                 "language": state.get("language", "korean"),
                 "thread_id": thread_id
             }
