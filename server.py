@@ -50,7 +50,7 @@ def chat(req: MessageRequest):
 ]
         result = last.get_recommendation(user_id=req.user_id)
         print("결과",result)
-        parsed = result.strip("[]").split(",")
+        parsed = result.strip("[]").split(":")
         # job, reason , category= result.split(":")
         return {'job':parsed[0].replace(" ", ""),"reason":parsed[1],"category":category.index(parsed[2].replace(" ", ""))+1}
 
