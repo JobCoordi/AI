@@ -8,7 +8,7 @@ langchainhub>=0.1.14
 # FastAPI 등 서버용이 있다면 (옵션)
 fastapi
 uvicorn[standard]
-
+load_dotenv
 # 환경변수
 python-dotenv
 
